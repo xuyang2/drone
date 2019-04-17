@@ -184,23 +184,24 @@ func (r *Runner) Run(ctx context.Context, id int64) error {
 	// TODO mutate the yaml
 	//
 
-	y, err := envsubst.Eval(string(m.Config.Data), func(name string) string {
+	// this code is temporarily in place to detect and convert
+	// the legacy yaml configuration file to the new format.
+	y, err := converter.ConvertString(string(m.Config.Data), converter.Metadata{
+		Filename: m.Repo.Config,
+		Ref:      m.Build.Ref,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	y, err = envsubst.Eval(y, func(name string) string {
 		env := environ[name]
 		if strings.Contains(env, "\n") {
 			env = fmt.Sprintf("%q", env)
 		}
 		return env
 	})
-
-	// this code is temporarily in place to detect and convert
-	// the legacy yaml configuration file to the new format.
-	y, err = converter.ConvertString(y, converter.Metadata{
-		Filename: m.Repo.Config,
-		Ref:      m.Build.Ref,
-	})
-	if err != nil {
-		return err
-	}
 
 	manifest, err := yaml.ParseString(y)
 	if err != nil {
@@ -517,7 +518,7 @@ func (r *Runner) Run(ctx context.Context, id int64) error {
 }
 
 // Start starts N build runner processes. Each process polls
-// the server for pednding builds to execute.
+// the server for pending builds to execute.
 func (r *Runner) Start(ctx context.Context, n int) error {
 	var g errgroup.Group
 	for i := 0; i < n; i++ {
@@ -536,7 +537,7 @@ func (r *Runner) start(ctx context.Context) error {
 		default:
 			// This error is ignored on purpose. The system
 			// should not exit the runner on error. The run
-			// funciton logs all errors, which should be enough
+			// function logs all errors, which should be enough
 			// to surface potential issues to an administrator.
 			r.poll(ctx)
 		}
